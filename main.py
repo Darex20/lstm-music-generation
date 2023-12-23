@@ -6,7 +6,20 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.callbacks import ModelCheckpoint
 import numpy as np
 import os
+import warnings
+warnings.filterwarnings("ignore")
 
+def load_midi_files(main_directories):
+    midi_files = []
+    for directory in main_directories:
+        for root, dirs, files in os.walk(directory):
+            # Skip the "versions" subdirectories
+            if 'versions' in root:
+                continue
+            for file in files:
+                if file.endswith('.mid') or file.endswith('.midi'):
+                    midi_files.append(os.path.join(root, file))
+    return midi_files
 
 # Function to Extract Notes from MIDI Files
 def get_notes_from_midi(midi_files):
@@ -104,6 +117,7 @@ def create_midi(prediction_output, output_file='test_output.mid'):
 # Function to Introduce Randomness in Predictions
 def sample(preds, temperature=1.0):
     preds = np.asarray(preds).astype('float64')
+    preds += 1e-10  # Add a small constant to avoid log(0)
     preds = np.log(preds) / temperature
     exp_preds = np.exp(preds)
     preds = exp_preds / np.sum(exp_preds)
@@ -113,8 +127,11 @@ def sample(preds, temperature=1.0):
 # Main Execution
 if __name__ == '__main__':
     # Path to MIDI files
-    path_to_midi = './data'
-    midi_files = [os.path.join(path_to_midi, file) for file in os.listdir(path_to_midi) if file.endswith('.mid')]
+    data_directory = './data'
+    pop909_directory = './POP909-Dataset/POP909'
+
+    midi_files = load_midi_files([data_directory])
+    # midi_files = [os.path.join(path_to_midi, file) for file in os.listdir(path_to_midi) if file.endswith('.mid')]
     
     # Extract notes from MIDI files
     notes = get_notes_from_midi(midi_files)
@@ -131,7 +148,7 @@ if __name__ == '__main__':
     filepath = "weights-improvement-{epoch:02d}-{loss:.4f}-bigger.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='loss', verbose=0, save_best_only=True, mode='min')
     callbacks_list = [checkpoint]
-    model.fit(network_input, network_output, epochs=20, batch_size=64, callbacks=callbacks_list)
+    model.fit(network_input, network_output, epochs=10, batch_size=128, callbacks=callbacks_list)
     
     # Generate music
     prediction_output = generate_notes(model, network_input, note_to_int, int_to_note)
